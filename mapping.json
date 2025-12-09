@@ -1,0 +1,233 @@
+{
+  "axe_to_wcag": {
+    "color-contrast": {
+      "wcag": ["1.4.3", "1.4.11"],
+      "en": ["9.1.4.3", "9.1.4.11"],
+      "tags": ["cat.color"],
+      "principle": "Perceivable"
+    },
+    "image-alt": {
+      "wcag": ["1.1.1"],
+      "en": ["9.1.1.1"],
+      "tags": ["cat.text-alternatives"],
+      "principle": "Perceivable"
+    },
+    "area-alt": {
+      "wcag": ["1.1.1"],
+      "en": ["9.1.1.1"],
+      "tags": ["cat.text-alternatives"],
+      "principle": "Perceivable"
+    },
+    "image-redundant-alt": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.text-alternatives"],
+      "principle": "Perceivable",
+      "advice": true
+    },
+    "link-name": {
+      "wcag": ["2.4.4", "2.4.9"],
+      "en": ["9.2.4.4", "9.2.4.9"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Operable"
+    },
+    "button-name": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-prohibited-attr": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "label": {
+      "wcag": ["3.3.2"],
+      "en": ["9.3.3.2"],
+      "tags": ["cat.forms"],
+      "principle": "Understandable"
+    },
+    "label-title-only": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.forms"],
+      "principle": "Understandable",
+      "advice": true
+    },
+    "form-field-multiple-labels": {
+      "wcag": ["1.3.1", "3.3.2"],
+      "en": ["9.1.3.1", "9.3.3.2"],
+      "tags": ["cat.forms"],
+      "principle": "Understandable"
+    },
+    "document-title": {
+      "wcag": ["2.4.2"],
+      "en": ["9.2.4.2"],
+      "tags": ["cat.structure"],
+      "principle": "Understandable"
+    },
+    "html-has-lang": {
+      "wcag": ["3.1.1"],
+      "en": ["9.3.1.1"],
+      "tags": ["cat.language"],
+      "principle": "Understandable"
+    },
+    "html-lang-valid": {
+      "wcag": ["3.1.1"],
+      "en": ["9.3.1.1"],
+      "tags": ["cat.language"],
+      "principle": "Understandable"
+    },
+    "aria-roles": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-valid-attr": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-valid-attr-value": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "duplicate-id": {
+      "wcag": ["4.1.1"],
+      "en": [],
+      "tags": ["cat.parsing", "recommandé"],
+      "principle": "Robust"
+    },
+    "heading-order": {
+      "wcag": ["1.3.1", "2.4.6"],
+      "en": ["9.1.3.1", "9.2.4.6"],
+      "tags": ["cat.structure"],
+      "principle": "Understandable"
+    },
+    "skip-link": {
+      "wcag": ["2.4.1"],
+      "en": ["9.2.4.1"],
+      "tags": ["cat.keyboard"],
+      "principle": "Operable"
+    },
+    "keyboard": {
+      "wcag": ["2.1.1"],
+      "en": ["9.2.1.1"],
+      "tags": ["cat.keyboard"],
+      "principle": "Operable"
+    },
+    "focus-order-semantics": {
+      "wcag": ["2.4.3"],
+      "en": ["9.2.4.3"],
+      "tags": ["cat.keyboard"],
+      "principle": "Operable"
+    },
+    "tabindex": {
+      "wcag": ["2.1.1", "2.4.3"],
+      "en": ["9.2.1.1", "9.2.4.3"],
+      "tags": ["cat.keyboard"],
+      "principle": "Operable"
+    },
+    "region": {
+      "wcag": ["1.3.1"],
+      "en": ["9.1.3.1"],
+      "tags": ["cat.structure"],
+      "principle": "Perceivable"
+    },
+    "landmark-one-main": {
+      "wcag": ["1.3.1"],
+      "en": ["9.1.3.1"],
+      "tags": ["cat.structure"],
+      "principle": "Perceivable"
+    },
+    "landmark-complementary-is-top-level": {
+      "wcag": ["1.3.1"],
+      "en": ["9.1.3.1"],
+      "tags": ["cat.structure"],
+      "principle": "Perceivable"
+    },
+    "aria-allowed-attr": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-required-children": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-allowed-role": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "page-has-heading-one": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.structure"],
+      "principle": "Understandable",
+      "advice": true
+    },
+    "landmark-unique": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.structure"],
+      "principle": "Understandable",
+      "advice": true
+    },
+    "meta-viewport": {
+      "wcag": ["1.4.4"],
+      "en": ["9.1.4.4"],
+      "tags": ["cat.time-and-media"],
+      "principle": "Perceivable"
+    },
+    "meta-viewport-large": {
+      "wcag": ["1.4.4"],
+      "en": ["9.1.4.4"],
+      "tags": ["cat.time-and-media"],
+      "principle": "Perceivable"
+    },
+    "link-in-text-block": {
+      "wcag": ["1.4.1"],
+      "en": ["9.1.4.1"],
+      "tags": ["cat.color"],
+      "principle": "Perceivable",
+      "advice": true
+    },
+    "list": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.structure"],
+      "principle": "Understandable",
+      "advice": true
+    },
+    "listitem": {
+      "wcag": [],
+      "en": [],
+      "tags": ["cat.structure"],
+      "principle": "Understandable",
+      "advice": true
+    },
+    "duplicate-id-aria": {
+      "wcag": ["4.1.2"],
+      "en": ["9.4.1.2"],
+      "tags": ["cat.name-role-value"],
+      "principle": "Robust"
+    },
+    "aria-hidden-focus": {
+      "wcag": ["4.1.2", "2.4.3"],
+      "en": ["9.4.1.2", "9.2.4.3"],
+      "tags": ["cat.name-role-value", "cat.keyboard"],
+      "principle": "Operable"
+    }
+  }
+}

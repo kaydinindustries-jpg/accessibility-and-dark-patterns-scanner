@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf8" />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="/node_modules/mocha/mocha.css"
+    />
+    <script src="/node_modules/mocha/mocha.js"></script>
+    <script src="/node_modules/chai/chai.js"></script>
+    <script src="/axe.js"></script>
+    <script>
+      mocha.setup({
+        timeout: 10000,
+        ui: 'bdd'
+      });
+      var assert = chai.assert;
+    </script>
+  </head>
+
+  <body>
+    <div id="fixture">
+      <!-- Passed  -->
+      <!-- pass 1 -->
+      <audio
+        id="pass1"
+        src="/test/assets/moon-speech.mp3"
+        autoplay="true"
+        controls
+      ></audio>
+      <!-- pass 2 -->
+      <video id="pass2" autoplay="true" controls>
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+      <!-- pass 3  -->
+      <audio
+        id="pass3"
+        src="/test/assets/moon-speech.mp3#t=25"
+        autoplay="true"
+      ></audio>
+      <!-- pass 4 -->
+      <video id="pass4" autoplay="true">
+        <source src="/test/assets/video.webm#t=8,10" type="video/webm" />
+        <source src="/test/assets/video.mp4#t=8,10" type="video/mp4" />
+      </video>
+      <!-- pass 5  -->
+      <audio
+        id="pass5"
+        src="/test/assets/moon-speech.mp3"
+        autoplay
+        controls
+      ></audio>
+      <!-- pass 6 -->
+      <video id="pass6" autoplay="true" loop controls>
+        <source src="/test/assets/video.webm#t=8,10" type="video/webm" />
+        <source src="/test/assets/video.mp4#t=8,10" type="video/mp4" />
+      </video>
+      <!-- pass 7  -->
+      <audio
+        id="pass7"
+        src="/test/assets/moon-speech.mp3"
+        autoplay
+        loop
+        controls
+      ></audio>
+
+      <!-- Incomplete  -->
+      <!-- incomplete 1 -->
+      <audio
+        id="incomplete1"
+        src="/test/assets/moon-speech.mp3"
+        autoplay="true"
+      ></audio>
+      <!-- incomplete 2 -->
+      <video id="incomplete2" autoplay="true">
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+      <!-- incomplete 3 -->
+      <video id="incomplete3" autoplay="true" loop="true">
+        <source src="/test/assets/video.webm#t=8,10" type="video/webm" />
+        <source src="/test/assets/video.mp4#t=8,10" type="video/mp4" />
+      </video>
+      <!-- incomplete 4  -->
+      <audio
+        id="incomplete4"
+        src="/test/assets/moon-speech.mp3#t=1,3"
+        autoplay="true"
+        loop="true"
+      ></audio>
+      <!-- inapplicable 5 -->
+      <audio
+        id="incomplete5"
+        src="/test/assets/moon-speech.mp3"
+        preload="none"
+        autoplay
+        loop
+      ></audio>
+      <!-- inapplicable 6 -->
+      <video id="incomplete6" preload="none" autoplay loop>
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+
+      <!-- Inapplicable  -->
+      <!-- inapplicable 1 -->
+      <video id="inapplicable1" autoplay="true" muted="true">
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+      <!-- inapplicable 2 -->
+      <audio
+        id="inapplicable2"
+        src="/test/assets/moon-speech.mp3"
+        controls
+      ></audio>
+      <!-- inapplicable 3 -->
+      <video id="inapplicable3" autoplay="true" paused="true">
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+      <!-- inapplicable 4 -->
+      <audio
+        id="inapplicable4"
+        src="/test/assets/moon-speech.mp3"
+        preload="none"
+      ></audio>
+      <!-- inapplicable 5 -->
+      <video id="inapplicable5" preload="none">
+        <source src="/test/assets/video.webm" type="video/webm" />
+        <source src="/test/assets/video.mp4" type="video/mp4" />
+      </video>
+    </div>
+
+    <div id="mocha"></div>
+
+    <script src="/test/testutils.js"></script>
+    <script src="no-autoplay-audio.js"></script>
+    <script src="/test/integration/adapter.js"></script>
+  </body>
+</html>

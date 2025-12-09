@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'">
+    <title>ACCESSIBILITY SCANNER — Side Panel</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <div id="app" class="root">
+      <header class="sp-header" aria-label="ACCESSIBILITY SCANNER by ARDASIA">
+        <div class="title">ACCESSIBILITY SCANNER — Side Panel</div>
+        <div class="actions">
+          <button id="sp-refresh" title="Refresh">↻</button>
+          <button id="sp-export-json" class="primary">Export JSON</button>
+          <button id="sp-export-csv" class="primary">Export CSV</button>
+          <button id="sp-export-doc" class="primary">Export DOC</button>
+          <button id="sp-reset" title="Reset panel state">Reset</button>
+        </div>
+      </header>
+      <section class="summary">
+        <div class="metric">Overall: <strong id="m-global">-</strong></div>
+        <div class="metric">Critical: <span id="m-crit">0</span></div>
+        <div class="metric">Serious: <span id="m-maj">0</span></div>
+        <div class="metric">Moderate: <span id="m-moy">0</span></div>
+        <div class="metric">Minor: <span id="m-min">0</span></div>
+        <div class="metric">Partial: <span id="m-partial">-</span></div>
+      </section>
+      <section class="filters">
+        <label><input type="checkbox" class="ff" value="contrast" /> Contrast <span class="fc" id="fc-contrast">0</span></label>
+        <label><input type="checkbox" class="ff" value="keyboard" /> Keyboard <span class="fc" id="fc-keyboard">0</span></label>
+        <label><input type="checkbox" class="ff" value="forms" /> Forms <span class="fc" id="fc-forms">0</span></label>
+        <label><input type="checkbox" class="ff" value="aria" /> ARIA <span class="fc" id="fc-aria">0</span></label>
+      </section>
+      <section class="list">
+        <div class="list-header">
+          <input id="search" type="search" placeholder="Search (rule id, WCAG, selectors, snippet)…" />
+          <select id="sort">
+            <option value="impact">Sort: impact</option>
+            <option value="wcag">Sort: WCAG</option>
+            <option value="principle">Sort: Principle</option>
+          </select>
+        </div>
+        <ul id="items" class="items"></ul>
+      </section>
+    </div>
+    <script src="sidepanel.js"></script>
+  </body>
+  </html>
+
+

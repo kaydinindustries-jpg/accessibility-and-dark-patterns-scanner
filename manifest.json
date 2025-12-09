@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "ARDASIA accessibility scanner",
+  "description": "100% local accessibility scanner (axe-core). WCAG 2.2 ↔ EN 301 549 mapping, 1‑click DOC/JSON/CSV exports, IndexedDB history.",
+  "version": "2.1.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "EAA/WCAG Auditor"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads",
+    "offscreen",
+    "sidePanel"
+  ],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "libs/axe.min.js",
+        "offscreen.html"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

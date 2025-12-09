@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>EAA/WCAG Auditor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="branding-header" aria-label="ACCESSIBILITY SCANNER by ARDASIA">
+      <div class="brand">
+        <span class="brand-line1">ACCESSIBILITY SCANNER</span>
+        <span class="brand-line2">by ARDASIA</span>
+      </div>
+    </header>
+    <div class="popup-disclaimer" role="note" aria-live="polite">
+      Technical pre-audit, not certification. Partial scan may occur (CSP/iframes).
+    </div>
+    <div class="container">
+      <h1>Audit</h1>
+      <div class="actions">
+        <button id="btn-scan" data-i18n="popup.scan">Scan</button>
+        <button id="btn-open-dashboard" class="primary" data-i18n="popup.open_dashboard">Open Side Panel</button>
+        <div class="mini-cta" aria-hidden="true" data-i18n="popup.mini_cta">Monitoring, Evidence Pack, Alerts</div>
+      </div>
+
+      <div id="status"></div>
+
+      <fieldset class="sampling">
+        <legend>WCAG-EM Sampling</legend>
+        <label for="sample-urls">List of URLs (one per line) — e.g., home, PLP, PDP, cart, checkout, content page</label>
+        <textarea id="sample-urls" rows="6" placeholder="https://example.com/\nhttps://example.com/plp\nhttps://example.com/pdp"></textarea>
+        <label for="sample-perimeter">Perimeter</label>
+        <input id="sample-perimeter" type="text" placeholder="Pre-audit perimeter (e.g., e-commerce flow, key pages)" />
+        <div class="sampling-actions">
+          <button id="btn-save-sample" type="button">Save sampling</button>
+        </div>
+        <div id="sample-status" class="small" aria-live="polite"></div>
+      </fieldset>
+
+      <div class="counters">
+        <div>Critical: <span id="c-critique">0</span></div>
+        <div>Serious: <span id="c-majeure">0</span></div>
+        <div>Moderate: <span id="c-moyenne">0</span></div>
+        <div>Minor: <span id="c-mineure">0</span></div>
+      </div>
+
+      <div class="scores">
+        <div>Overall score: <strong id="score-global">-</strong></div>
+        <div>Perceivable: <span id="score-perc">-</span></div>
+        <div>Operable: <span id="score-oper">-</span></div>
+        <div>Understandable: <span id="score-under">-</span></div>
+        <div>Robust: <span id="score-robust">-</span></div>
+      </div>
+      <div class="references small" id="standards-refs">References: 
+        <a href="https://www.w3.org/TR/WCAG22/" target="_blank" rel="noopener">WCAG 2.2</a> — 
+        <a href="https://www.etsi.org/deliver/etsi_en/301500_301599/301549/" target="_blank" rel="noopener">EN 301 549</a>
+      </div>
+
+      <div id="sample-summary" class="small" aria-live="polite"></div>
+
+      <div class="filters">
+        <label><input type="checkbox" class="f" value="contrast" /> Contrast <span class="filter-count" id="count-contrast">0</span></label>
+        <label><input type="checkbox" class="f" value="keyboard" /> Keyboard <span class="filter-count" id="count-keyboard">0</span></label>
+        <label><input type="checkbox" class="f" value="forms" /> Forms <span class="filter-count" id="count-forms">0</span></label>
+        <label><input type="checkbox" class="f" value="aria" /> ARIA <span class="filter-count" id="count-aria">0</span></label>
+      </div>
+
+      <div id="advice-container" class="advice hidden">
+        <h3>Advice (non-blocking)</h3>
+        <ul id="advice-list"></ul>
+      </div>
+
+      <ul id="findings"></ul>
+    </div>
+
+    <!-- Overlay d'export conservé (non utilisé) -->
+    <div id="export-overlay" class="export-overlay hidden" aria-live="polite" aria-busy="true">
+      <div class="export-modal" role="dialog" aria-modal="true" aria-labelledby="export-title">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="export-message">
+          <h3 id="export-title">Export en cours...</h3>
+          <div id="export-step">Initialisation</div>
+          <div class="export-warning">
+            ⚠️ <strong>Ne fermez pas cette popup ni la page auditée</strong><br/>
+            L'export peut prendre jusqu'à 2 minutes selon la complexité du contenu.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
