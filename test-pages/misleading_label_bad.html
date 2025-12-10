@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Misleading Label - Dark Pattern Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .modal { max-width: 500px; margin: 100px auto; padding: 30px; border: 2px solid #007bff; border-radius: 8px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+    .modal h2 { color: #007bff; margin-top: 0; }
+    .discount { font-size: 36px; font-weight: bold; color: #28a745; margin: 20px 0; }
+    .btn { padding: 12px 24px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin: 5px; width: 100%; }
+    .btn-accept { background: #007bff; color: white; font-weight: bold; }
+    /* DARK PATTERN: Confusing negative wording */
+    .btn-decline { background: #fff; color: #666; border: 1px solid #ddd; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2>🎉 Exclusive Offer!</h2>
+    <div class="discount">Save 50%</div>
+    <p>Get instant access to premium features at half price!</p>
+    
+    <button class="btn btn-accept">Yes, I want to save money!</button>
+    
+    <!-- DARK PATTERN: Confusing double-negative wording -->
+    <button class="btn btn-decline">No, I don't want to save money</button>
+    <button class="btn btn-decline">No thanks, I prefer to pay full price</button>
+  </div>
+</body>
+</html>
+

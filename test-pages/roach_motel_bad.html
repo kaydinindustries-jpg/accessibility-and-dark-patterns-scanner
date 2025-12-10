@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Hard to Cancel - Dark Pattern Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .account { max-width: 800px; margin: 0 auto; }
+    .subscription { padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin: 20px 0; }
+    .btn-keep { background: #007bff; color: white; padding: 15px 40px; border: none; border-radius: 4px; font-size: 18px; cursor: pointer; font-weight: bold; }
+    /* DARK PATTERN: Cancel link is tiny and hidden at bottom */
+    .cancel-link { font-size: 10px; color: #999; text-decoration: underline; cursor: pointer; margin-top: 40px; display: block; }
+    .cancel-link:hover { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="account">
+    <h1>Your Subscription</h1>
+    
+    <div class="subscription">
+      <h2>Premium Plan - $29.99/month</h2>
+      <p>You're getting amazing value with unlimited access to all features!</p>
+      
+      <button class="btn-keep">Keep My Plan</button>
+      <button class="btn-keep" style="background: #28a745;">Upgrade to Pro</button>
+      
+      <!-- DARK PATTERN: Cancel is tiny and barely visible -->
+      <a href="/cancel" class="cancel-link">cancel subscription</a>
+    </div>
+  </div>
+</body>
+</html>
+

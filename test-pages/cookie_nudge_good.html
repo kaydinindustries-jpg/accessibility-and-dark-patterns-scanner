@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cookie Banner - Good Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .cookie-banner { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid #ddd; padding: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+    .cookie-banner h2 { margin-top: 0; }
+    .cookie-banner .actions { display: flex; gap: 10px; }
+    /* GOOD PATTERN: Both buttons equally visible and prominent */
+    .btn-accept, .btn-reject { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+    .btn-reject { background: #6c757d; }
+    .btn-accept:hover, .btn-reject:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <h1>Welcome to Our Website</h1>
+  <p>This page demonstrates a good cookie banner without dark patterns.</p>
+  
+  <!-- GOOD PATTERN: Cookie banner with balanced choices -->
+  <div class="cookie-banner" role="dialog" aria-modal="true" aria-labelledby="cookie-title">
+    <h2 id="cookie-title">We use cookies</h2>
+    <p>We use cookies to enhance your experience. You can accept or reject them.</p>
+    <div class="actions">
+      <button class="btn-accept">Accept all</button>
+      <button class="btn-reject">Reject all</button>
+      <button class="btn-manage">Manage preferences</button>
+    </div>
+  </div>
+</body>
+</html>
+

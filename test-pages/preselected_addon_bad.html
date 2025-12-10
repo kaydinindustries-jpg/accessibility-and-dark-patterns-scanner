@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Preselected Addon - Dark Pattern Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .checkout { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    .option { margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+    .option label { display: flex; align-items: center; gap: 10px; }
+    .price { color: #007bff; font-weight: bold; }
+    .btn-checkout { background: #28a745; color: white; padding: 12px 24px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="checkout">
+    <h1>Checkout</h1>
+    <p>Complete your purchase</p>
+    
+    <div class="option">
+      <h3>Your order: Premium Plan <span class="price">$29.99/month</span></h3>
+    </div>
+    
+    <!-- DARK PATTERN: Pre-checked upsell options -->
+    <div class="option">
+      <label>
+        <input type="checkbox" checked>
+        Add Premium Insurance <span class="price">+$9.99/month</span>
+      </label>
+      <p style="font-size: 12px; color: #666;">Protect your subscription against unexpected issues</p>
+    </div>
+    
+    <div class="option">
+      <label>
+        <input type="checkbox" checked>
+        Add Extended Support <span class="price">+$14.99/month</span>
+      </label>
+      <p style="font-size: 12px; color: #666;">Get priority 24/7 support</p>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 4px;">
+      <strong>Total: $54.97/month</strong>
+    </div>
+    
+    <button class="btn-checkout">Complete Purchase</button>
+  </div>
+</body>
+</html>
+

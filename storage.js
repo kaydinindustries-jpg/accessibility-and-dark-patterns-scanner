@@ -2,7 +2,8 @@
 
 const DB_NAME = "eaa_auditor_db";
 const STORE = "scans";
-const VERSION = 1;
+const DARK_STORE = "dark_scans";
+const VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -13,6 +14,11 @@ function openDb() {
         const os = db.createObjectStore(STORE, { keyPath: "id", autoIncrement: true });
         os.createIndex("by_url", "url", { unique: false });
         os.createIndex("by_time", "timestamp", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(DARK_STORE)) {
+        const ds = db.createObjectStore(DARK_STORE, { keyPath: "id", autoIncrement: true });
+        ds.createIndex("by_url", "pageUrl", { unique: false });
+        ds.createIndex("by_time", "timestamp", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -39,6 +45,31 @@ export async function getLastScanForUrl(url) {
     req.onsuccess = () => {
       const rows = req.result || [];
       rows.sort((a, b) => b.timestamp - a.timestamp);
+      resolve(rows[0] || null);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveDarkScan(scan) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DARK_STORE, "readwrite");
+    tx.objectStore(DARK_STORE).add(scan);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getLastDarkScanForUrl(url) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DARK_STORE, "readonly");
+    const idx = tx.objectStore(DARK_STORE).index("by_url");
+    const req = idx.getAll(IDBKeyRange.only(url));
+    req.onsuccess = () => {
+      const rows = req.result || [];
+      rows.sort((a, b) => (new Date(b.timestamp).getTime()) - (new Date(a.timestamp).getTime()));
       resolve(rows[0] || null);
     };
     req.onerror = () => reject(req.error);

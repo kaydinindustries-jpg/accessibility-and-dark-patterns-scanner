@@ -1,5 +1,5 @@
 body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 0; background: radial-gradient(1200px 400px at -10% -20%, rgba(88,101,242,.12), transparent) #0b0f1a; color: #e5e7eb; }
-.container { width: 380px; padding: 12px; padding-top: 52px; display: flex; flex-direction: column; gap: 8px; }
+.container { width: 360px; padding: 12px; padding-top: 52px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
 h1 { font-size: 16px; margin: 6px 0 12px; color:#cbd5e1; letter-spacing:.3px; }
 .branding-header { position: sticky; top: 0; display:flex; align-items:center; justify-content:center; height:48px; background: linear-gradient(180deg, rgba(20,24,36,.85), rgba(11,15,26,.85)); border-bottom: 1px solid rgba(255,255,255,.08); z-index: 10; }
 .brand { display:flex; flex-direction:column; align-items:center; line-height:1; }
@@ -45,3 +45,21 @@ h1 { font-size: 16px; margin: 6px 0 12px; color:#cbd5e1; letter-spacing:.3px; }
 .export-message h3 { margin: 0 0 6px; font-size: 14px; color:#e5e7eb; }
 .export-warning { margin-top: 8px; font-size: 12px; color: #fcd34d; }
 /* Futuristic branding: dark titanium base, neon cyan highlights, brushed metal title */
+
+/* Scan buttons */
+.scan-button {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #3947ff, #2430cc);
+  color: #fff;
+  border: 1px solid rgba(91,110,255,.6);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing:.25px;
+  box-shadow: 0 6px 18px rgba(57,71,255,.35);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scan-button { transition: transform .15s ease, filter .2s ease; }
+  .scan-button:hover { transform: translateY(-1px); filter: brightness(1.08); }
+}

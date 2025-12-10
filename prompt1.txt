@@ -1,0 +1,685 @@
+
+***PROMPT PARTIE 1***
+---
+
+Tu es chargé de transformer l’extension Chrome existante `accessibility-and-dark-patterns-scanner` (ARDASIA) en un produit **“Accessibility & Dark Pattern Watchdog”** prêt pour des premiers clients B2B (SaaS / e-commerce 1–50 M€/an).
+
+Objectif :
+
+1. Garder le scanner d’accessibilité existant.
+2. Ajouter un **scanner de dark patterns** fiable “pré-audit”, basé sur un mix **heuristiques DOM locales + API backend (GPT)**.
+3. Fournir un **rapport exploitable** (dans l’UI de l’extension + export JSON/PDF) pour des équipes Product / Legal / Compliance.
+
+Je te décris l’architecture cible, les modules à créer/modifier, les schémas JSON, et les règles techniques à respecter. Tu dois adapter les noms de fichiers à la structure actuelle du repo, mais respecter l’intention.
+
+---
+
+## 1. Architecture globale à implémenter
+
+### 1.1. Côté extension (Chrome MV3)
+
+Conserver :
+
+* Manifest MV3.
+* Pipeline existante d’audit accessibilité (axe-core ou équivalent).
+* UI (popup / sidepanel) qui affiche les résultats d’accessibilité.
+
+Ajouter :
+
+1. **Module de scan dark patterns local** qui :
+
+   * s’exécute dans le content script ou dans un script d’injection dédié,
+   * parcourt le DOM,
+   * extrait une liste d’**éléments candidats** (cookie banner, modals d’abo, checkouts, etc.),
+   * produit un objet JSON compact envoyé au backend.
+
+2. **Communication background ↔ content script ↔ backend** :
+
+   * Utiliser `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage` pour déclencher un scan.
+   * Le service worker (background) appelle l’API backend (`/api/analyze-ui`) avec le payload.
+   * Le background renvoie la réponse au content script / sidepanel pour affichage.
+
+3. **UI “Dark Patterns”** :
+
+   * Nouvel onglet / section dans le sidepanel :
+
+     * liste des findings dark patterns,
+     * filtres par `pattern_type` et `risk_level`,
+     * bouton “voir dans la page” (scroll + highlight du DOM),
+     * bouton “exporter rapport”.
+
+---
+
+### 1.2. Côté backend (Node/TypeScript de préférence)
+
+Créer un petit service HTTP (Express, Fastify ou autre) :
+
+* Endpoint principal : `POST /api/analyze-ui`
+* Entrée : payload JSON envoyé par l’extension.
+* Sortie : liste de findings dark patterns au format strict.
+
+Backend responsibilities :
+
+* Validation du schéma JSON d’entrée (Zod ou équivalent).
+* Appel à l’API OpenAI (GPT-4.1-mini ou GPT-5-mini) pour classification/explanations.
+* Validation / sanitation de la réponse LLM (parser strict JSON, fallback en cas d’erreur).
+* Ne jamais logguer les payloads complets en clair en prod (prévoir un mode debug).
+* Exposer une config simple (clé OpenAI, origins autorisés, etc.).
+
+---
+
+## 2. Schémas de données
+
+### 2.1. Payload envoyé par l’extension → backend
+
+Définir une interface TypeScript / JSON comme :
+
+```ts
+type UIRole =
+  | "cookie_banner"
+  | "checkout"
+  | "subscription_flow"
+  | "cancellation_flow"
+  | "pricing_section"
+  | "ai_widget"
+  | "generic";
+
+interface DarkPatternCandidate {
+  id: string;              // id interne extension (uuid)
+  role: UIRole;            // rôle supposé
+  htmlSnippet: string;     // extrait HTML limité (parent + enfants clés)
+  visibleText: string;     // texte concaténé visible
+  url: string;             // URL complète
+  path: string;            // chemin (location.pathname + query simplifiée)
+  xpathOrSelector: string; // sélecteur unique pour retrouver l’élément
+  meta: {
+    hasPrecheckedCheckbox?: boolean;
+    isModal?: boolean;
+    isOverlay?: boolean;
+    buttonLabels?: string[];
+    containsPrice?: boolean;
+    containsUrgencyWords?: boolean;
+    viewport?: "desktop" | "mobile_emulated";
+  };
+}
+
+interface AnalyzeUIRequest {
+  scanId: string;
+  pageUrl: string;
+  timestamp: string; // ISO
+  candidates: DarkPatternCandidate[];
+}
+```
+
+L’extension doit **limiter la taille** de `htmlSnippet` et `visibleText` (troncature prudente) pour éviter des payloads énormes.
+
+### 2.2. Réponse backend → extension
+
+```ts
+type PatternType =
+  | "cookie_nudge"        // consentement manipulé (refus caché, etc.)
+  | "roach_motel"         // facile d’entrer, difficile de sortir (cancel)
+  | "preselected_addon"   // options pré-cochées / upsells cachés
+  | "hidden_information"  // infos essentielles enfouies/minimisées
+  | "misleading_label"    // libellés ambigus / trompeurs
+  | "ai_manipulation"     // recommandations / prompts IA biaisés
+  | "none";
+
+type RiskLevel = "low" | "medium" | "high";
+
+interface DarkPatternFinding {
+  candidateId: string;      // id du candidat d’origine
+  isDarkPattern: boolean;
+  patternType: PatternType;
+  riskLevel: RiskLevel;
+  explanation: string;      // texte court (2–4 phrases max)
+  suggestedFix: string;     // proposition de correction simple
+  legalRefs: string[];      // ex: ["DSA Art. 25", "AI Act Art. 5(1)(a)"]
+  confidence: number;       // 0–1
+}
+
+interface AnalyzeUIResponse {
+  scanId: string;
+  findings: DarkPatternFinding[];
+  summary: {
+    totalCandidates: number;
+    totalPatterns: number;
+    countsByPatternType: Record<PatternType, number>;
+    countsByRisk: Record<RiskLevel, number>;
+  };
+  modelVersion: string;
+  processingMs: number;
+}
+```
+
+L’extension doit mapper `candidateId` → `xpathOrSelector` pour retrouver l’élément et le surligner.
+
+---
+
+## 3. Scan dark patterns local (content script)
+
+Créer un module dédié (ex. `src/darkPatterns/scanCandidates.ts`) qui :
+
+1. **Identifie les zones sensibles** via heuristiques DOM :
+
+   * **Cookie banners** :
+
+     * éléments avec `role="dialog"` ou `aria-modal="true"`
+     * contenant des mots‐clés type “cookie”, “cookies”, “privacy”, “tracking”, “consent”, “we use cookies” (en anglais en V1).
+     * boutons labels contenant “accept”, “agree”, “reject”, “decline”, “manage”, “settings”.
+
+   * **Checkout / pricing / upsell** :
+
+     * formulaires ou sections avec `input[type="checkbox"]` pré-cochés (`checked === true`)
+     * texte proche mentionnant “add”, “extra”, “insurance”, “protection”, “trial”, “subscribe”.
+
+   * **Flows d’abonnement / annulation** :
+
+     * liens/boutons contenant “cancel”, “unsubscribe”, “close account”, “delete account” qui :
+
+       * sont de petite taille, peu visibles (classe `secondary`, `link`, etc.)
+       * sont placés loin des CTA principaux “continue”, “keep plan”.
+
+   * **AI widgets / assistants** :
+
+     * éléments avec icônes de chat / “assistant” / mention “AI”, “copilot”, “assistant”, “recommendation engine”.
+
+2. **Pour chaque candidat** :
+
+   * Construire `DarkPatternCandidate` avec :
+
+     * `htmlSnippet` = outerHTML raccourci (max N chars).
+     * `visibleText` = texte visible normalisé (trim, espaces).
+     * `xpathOrSelector` = un sélecteur CSS stable (id, data-attribute, ou fallback XPath).
+     * `meta` rempli (précoché, isModal, buttonLabels, etc.).
+
+3. **Limiter le nombre total de candidats** :
+
+   * ex. max 30–40 par page.
+   * Appliquer un tri simple (prioriser modals, checkouts, etc.).
+
+4. **Exposer une fonction** :
+
+```ts
+export function collectDarkPatternCandidates(): AnalyzeUIRequest;
+```
+
+Cette fonction est appelée par le content script quand l’utilisateur clique sur “Scan dark patterns”.
+
+---
+
+## 4. Backend : `/api/analyze-ui` + appel GPT
+
+Créer un projet backend minimal (Node + TypeScript) avec :
+
+* `POST /api/analyze-ui` :
+
+  * lit un `AnalyzeUIRequest`,
+  * valide (Zod ou Joi),
+  * construit un prompt pour GPT,
+  * parse la réponse en `AnalyzeUIResponse`,
+  * renvoie JSON.
+
+### 4.1. Prompting (haut niveau)
+
+Tu dois :
+
+* Utiliser un modèle économique et performant (ex. `gpt-4.1-mini` ou `gpt-5-mini`, paramètres par config).
+* Fournir au modèle :
+
+  * un rappel des catégories (`patternType`, `riskLevel`) et leur définition courte,
+  * la liste des candidats (texte + contexte).
+* Exiger du modèle qu’il renvoie **UNIQUEMENT** du JSON conforme au schéma.
+
+Pseudocode de la requête :
+
+```ts
+const systemPrompt = `
+You are an assistant specialized in detecting dark patterns in web UIs
+under EU law (DSA, consumer protection) and AI Act risk categories.
+
+You receive a list of UI elements (DOM snippets and visible text).
+For each element, you must decide if it contains a dark pattern from this taxonomy:
+
+- cookie_nudge: ...
+- roach_motel: ...
+- preselected_addon: ...
+- hidden_information: ...
+- misleading_label: ...
+- ai_manipulation: ...
+
+Return STRICT JSON with this schema: AnalyzeUIResponse {...}
+Do not include any natural language outside of the JSON.
+`;
+
+const userPrompt = buildUserPromptFromCandidates(request);
+```
+
+Ensuite tu appelles l’API OpenAI officielle (client Node) et tu valides la réponse JSON (parser + try/catch, fallback).
+
+### 4.2. Sécurité & config
+
+* Clé OpenAI lue via `process.env.OPENAI_API_KEY`.
+* `CORS` limité aux origins de l’extension et potentiellement d’un futur dashboard.
+* Logs :
+
+  * ne pas écrire `htmlSnippet` complet en prod, seulement des métriques (nombres, types, risk_level).
+  * prévoir un mode debug activable via env var.
+
+---
+
+## 5. UI extension : panneau “Dark Patterns”
+
+Dans le sidepanel / popup existant, ajouter :
+
+1. Un onglet `Dark Patterns` avec :
+
+   * Résumé en haut :
+
+     * nombre total de patterns détectés,
+     * répartition par `patternType` et `riskLevel`.
+
+   * Liste des findings sous forme de cartes :
+
+     * badges : `patternType`, `riskLevel`, `confidence`.
+     * `explanation` (2–3 phrases max).
+     * `suggestedFix` (bullet point ou une phrase).
+     * lien “Voir dans la page”.
+
+2. Interaction “Voir dans la page” :
+
+   * Le content script retrouve l’élément via `xpathOrSelector`.
+   * Applique un highlight visuel (outline rouge + overlay léger) pendant quelques secondes.
+   * Scroll jusqu’à l’élément (`element.scrollIntoView({ behavior: "smooth", block: "center" })`).
+
+3. Export de rapport :
+
+   * Bouton “Exporter rapport (JSON)” :
+
+     * télécharge un JSON contenant `AnalyzeUIResponse` complet + éventuels résultats d’accessibilité.
+
+   * (Optionnel V1) Bouton “Exporter rapport (HTML/PDF)” :
+
+     * générer une page HTML simple (section Résumé, section par pattern),
+     * utiliser `chrome.downloads.download` avec un Blob HTML.
+
+---
+
+## 6. Intégration accessibilité + dark patterns
+
+Ne casse pas l’existant.
+Tu dois :
+
+* Garder la logique d’audit accessibilité intacte.
+
+* Ajouter un **switch** UI simple :
+
+  * Onglet `Accessibility`
+  * Onglet `Dark Patterns`
+
+* Préparer une interface future pour un rapport combiné (accessibility + dark patterns).
+
+---
+
+## 7. Qualité, limites, et contraintes
+
+1. **Pas d’API key dans l’extension** :
+
+   * Toute clé OpenAI reste côté backend.
+   * L’extension appelle uniquement ton backend.
+
+2. **Performance** :
+
+   * Ne bloque pas le thread principal trop longtemps.
+   * Le scan DOM doit être raisonnablement rapide (< 1–2s sur des pages standard).
+   * Utiliser des timeouts pour l’appel backend.
+
+3. **Fiabilité JSON** :
+
+   * Implémenter un parseur strict de la réponse GPT.
+   * Si le JSON est invalide → remonter une erreur propre dans l’UI.
+
+4. **Internationalisation** :
+
+   * V1 : focus anglais (mots-clés).
+   * Prévoir la possibilité de rajouter d’autres langues via listes de motifs.
+
+5. **Pas d’hallucination dans le code** :
+
+   * Tu dois t’appuyer sur la structure réelle actuelle du repo.
+   * Si un module existe déjà pour la communication background/content, réutilise-le.
+   * Crée des fichiers/méthodes nouveaux de manière cohérente avec l’architecture actuelle.
+
+---
+
+Ta mission :
+
+1. Étendre proprement l’extension actuelle avec cette couche dark patterns (scan + UI).
+2. Créer un backend minimal `/api/analyze-ui` alimenté par GPT-mini.
+3. Laisser le produit dans un état où un humain peut :
+
+   * installer l’extension,
+   * cliquer sur “Scan”,
+   * voir des patterns plausibles sur des sites réels,
+   * exporter un rapport et en discuter avec un prospect B2B.
+
+Tout ce que tu implémentes doit être **testable** sur quelques sites (SaaS / e-com connus) et suffisamment robuste pour une démo à un responsable produit/compliance.
+
+
+***PROMPT PARTIE 2***
+
+---
+
+Tu continues la mission sur `accessibility-and-dark-patterns-scanner`.
+Objectif de ce complément : rendre le produit **plus fiable**, **testable**, et plus proche d’un outil “pré-audit” réellement utilisable par des équipes Produit / Legal / Compliance.
+
+Tu dois maintenant :
+
+1. Raffiner la **détection V1 des dark patterns** (taxonomie + heuristiques DOM).
+2. Ajouter une vraie couche de **tests / pages de démo**.
+3. Gérer proprement **config, erreurs, état UI**.
+4. Préparer le terrain pour la **monétisation B2B** (export, stabilité, logs côté backend).
+
+Ne modifie pas le scope général défini dans le premier message, tu le raffines.
+
+---
+
+## 1. Taxonomie V1 des dark patterns (définitions + heuristiques concrètes)
+
+Tu restes sur les `patternType` déjà définis, mais tu dois documenter en code (commentaires) et dans un fichier `docs/dark_patterns_v1.md` les définitions et les signaux DOM attendus.
+
+### 1.1. `cookie_nudge`
+
+**Concept** :
+Consentement cookies orienté vers “Accepter tout”, refus difficile / moins visible.
+
+**Heuristiques DOM à implémenter dans `collectDarkPatternCandidates` :**
+
+* Élément identifié comme `role="dialog"` ou modal contenant des mots‐clés “cookie”, “cookies”, “privacy”, “tracking”, “consent”.
+* Présence d’un bouton “Accept all” / “I agree” / similaire, avec :
+
+  * classe ou style plus visible (taille, couleur, `font-weight`, `background-color`) que “Reject all” / “Decline” / “Manage options”.
+* Bouton de refus absent, ou seulement sous forme de lien texte discret (petit, faible contraste) alors que le bouton d’acceptation est un CTA plein.
+* Cas à tagger `role="cookie_banner"` dans `UIRole`.
+
+Tu ne vas pas *juger* la conformité, mais tu marqueras ces candidats comme “suspects” pour `cookie_nudge` et laisseras le backend + GPT affiner.
+
+### 1.2. `roach_motel` (hard-to-cancel)
+
+**Concept** :
+Entrer dans un abonnement est simple, sortir est compliqué (liens cachés, multi-étapes inutiles, etc.)
+
+**Heuristiques DOM :**
+
+* Détection de liens/boutons contenant “cancel”, “unsubscribe”, “delete account”, “close account”.
+* Ces éléments sont :
+
+  * de type lien texte (`<a>`) sans style bouton,
+  * ou très petits, peu contrastés,
+  * situés dans des sections bas de page, alors que les CTA “keep plan”, “continue” sont très visibles (boutons primaires).
+* URLs de type `/account`, `/settings`, `/subscription`, `/billing` où “cancel” est présent uniquement très loin dans le DOM.
+
+Tu crées des candidats `role="cancellation_flow"` pour ces cas.
+
+### 1.3. `preselected_addon`
+
+**Concept** :
+Options supplémentaires (assurance, upsell, essais payants) pré-cochées par défaut.
+
+**Heuristiques DOM :**
+
+* `input[type="checkbox"]` avec `checked === true` ou `defaultChecked === true`.
+* Texte proche de la checkbox (label, paragraphe sibling) contenant des mots comme “extra”, “add”, “insurance”, “protection”, “trial”, “premium”, “upgrade”.
+* Page ou section avec indicateurs prix : mention de montants (`$`, `€`, nombres suivis de `/month`, `/year`).
+
+Tu dois remplir `meta.hasPrecheckedCheckbox = true` et `meta.containsPrice = true` si détecté, et attribuer `role="checkout"` ou `role="subscription_flow"` selon l’URL.
+
+### 1.4. `hidden_information`
+
+**Concept** :
+Infos essentielles (prix total, conditions, restrictions) enfouies, mini texte, ou seulement dans un tooltip/accordion replié.
+
+**Heuristiques DOM :**
+
+* Texte contenant “non-refundable”, “no refund”, “auto-renew”, “automatically renews”, “renewal”, “minimum term”, “cancellation fee”.
+* Ce texte est :
+
+  * dans un font-size significativement inférieur à la moyenne des paragraphes (tu peux approximer via computed style, ou via classes connues `small`, `fine-print`),
+  * ou dans des éléments `<details>`, accordéons fermés par défaut, `aria-hidden="true"` tant que l’utilisateur ne clique pas,
+  * ou très loin du CTA principal “Buy”, “Subscribe”, “Start trial”.
+
+Tu marques ces candidats avec `role="checkout"` ou `role="pricing_section"`.
+
+### 1.5. `misleading_label`
+
+**Concept** :
+Libellés ambigus, inversés, ou trompeurs (“Yes, I don’t want a discount”).
+
+**Heuristiques DOM :**
+
+* Boutons / checkboxes avec des labels du type :
+
+  * “No, I don’t want to save money”
+  * “No, I prefer to pay full price”
+  * “I’ll risk missing out”
+* Cases où le texte du bouton ne correspond pas clairement à l’action (ex : bouton “Continue” qui signifie en réalité “Accepter des conditions supplémentaires” presque cachées).
+* Critères : texte du bouton comporte une négation (“No, I…”), mais l’action backend (visible dans attributs `data-*`, ou texte contextuel) est en réalité un opt-in.
+
+Pour l’instant, tu te contentes de marquer ces candidats et de laisser le backend/LLM marquer `patternType="misleading_label"`.
+
+### 1.6. `ai_manipulation`
+
+**Concept** :
+Interfaces d’assistants / recommandations IA qui influencent fortement le choix sans transparence.
+
+**Heuristiques DOM :**
+
+* Présence de mots/labels “AI”, “assistant”, “copilot”, “smart suggestions”, “recommended for you”.
+* Widgets de chat / boîtes latérales qui suggèrent toujours le plan le plus cher, ou qui poussent un chemin spécifique.
+* Tu dois tagger comme `role="ai_widget"` et fournir autant de `visibleText` que possible (historiques de messages, suggestions) dans les limites raisonnables.
+
+Tu ne vas pas détecter un pattern légal complet, mais tu fournis au backend un maximum de contexte.
+
+---
+
+## 2. Tests & pages de démo
+
+Tu dois rendre ce système **testable** sans dépendre d’Internet.
+
+### 2.1. Créer un dossier `test-pages/`
+
+Ajoute au repo une série de fichiers HTML statiques dans `test-pages/` :
+
+* `cookie_nudge_good.html` / `cookie_nudge_bad.html`
+* `roach_motel_bad.html`
+* `preselected_addon_bad.html`
+* `hidden_information_bad.html`
+* `misleading_label_bad.html`
+
+Chaque page doit :
+
+* contenir un exemple minimal réaliste du pattern (header, contenu, modals),
+* être commentée dans le HTML pour expliquer le pattern test.
+
+Ces pages serviront à :
+
+* tester `collectDarkPatternCandidates` en les chargeant via `chrome-extension://` dans le navigateur de dev,
+* écrire des tests automatisés.
+
+### 2.2. Tests unitaires / d’intégration (si le projet a déjà un runner, sinon ajoute-en un léger)
+
+Si le repo utilise déjà Jest / Vitest / autre, branche-toi dessus. Sinon :
+
+* Ajoute, par exemple, Vitest pour tester les fonctions PURE JS (pas le DOM réel).
+* Abstrais les heuristiques de détection dans des fonctions testables :
+
+```ts
+function detectCookieBannerCandidates(doc: Document): DarkPatternCandidate[] { ... }
+function detectPreselectedAddons(doc: Document): DarkPatternCandidate[] { ... }
+// etc.
+```
+
+* Écris des tests qui chargent les HTML de `test-pages/` en DOM simulé (JSDOM) et vérifient :
+
+  * le nombre de candidats trouvés,
+  * certains champs `meta` (`hasPrecheckedCheckbox`, etc.).
+
+L’objectif :
+avoir un **minimum de garanties** que tes heuristiques ne sont pas totalement aléatoires.
+
+### 2.3. Mode “backend mock”
+
+Ajoute un mode “mock backend” activable via config (par exemple `USE_MOCK_BACKEND=true` en dev) :
+
+* Au lieu d’appeler l’API réelle, le background renvoie un `AnalyzeUIResponse` synthétique basé sur les candidats (ex. marquer certains `patternType` en dur).
+* Ça permet de tester l’UI (`Dark Patterns` tab, highlights) sans dépendre d’OpenAI.
+
+---
+
+## 3. Configuration, feature flags et erreurs
+
+Tu dois éviter que l’extension se casse au moindre problème backend.
+
+### 3.1. Configurable backend URL & flags
+
+Prévois un petit module de config dans l’extension, par ex. `src/config.ts` :
+
+```ts
+export const CONFIG = {
+  backendUrl: "https://api.ton-backend.com", // override en dev
+  enableAccessibilityScan: true,
+  enableDarkPatternScan: true,
+  maxCandidatesPerPage: 40,
+  maxCharsPerSnippet: 4000
+};
+```
+
+* Autorise un override par `chrome.storage.sync` pour le `backendUrl`, afin que tu puisses tester différentes instances sans recompiler.
+
+### 3.2. Gestion des états UI
+
+Dans le sidepanel, pour l’onglet “Dark Patterns”, prévois des états clairs :
+
+* **Idle** :
+
+  * message du type “Click ‘Scan’ to analyze this page for potential dark patterns.”
+
+* **Scanning** :
+
+  * spinner + message “Scanning DOM and calling analysis backend…”
+
+* **Erreur** (fetch, JSON invalide, timeout) :
+
+  * message explicite : “Analysis failed (network / parsing error). This does not mean your page is compliant.”
+
+* **No candidates** :
+
+  * “No relevant UI elements found to analyze on this page (e.g., no cookie banner, checkout, or subscription flow detected).”
+
+* **No patterns found** :
+
+  * “No obvious dark patterns detected according to our V1 heuristics. This is not a legal guarantee, but an indication.”
+
+Ces messages doivent être dans un module de strings pour faciliter futur i18n.
+
+### 3.3. Timeouts et limitations
+
+* Implémente un timeout (par ex. 10 s) pour l’appel backend :
+
+  * si dépassé, annuler la requête et afficher l’état “Erreur / timeout”.
+* Limite le nombre de `candidates` envoyés (ex. 40 max).
+* Tronque `htmlSnippet` et `visibleText` à `maxCharsPerSnippet`.
+
+---
+
+## 4. Backend : robustesse, logs, préparation SaaS
+
+Tu dois préparer ce backend pour être exploitable en mode “premiers clients”.
+
+### 4.1. Structure minimale
+
+* `src/index.ts` (server),
+* `src/routes/analyze-ui.ts` (handler principal),
+* `src/services/openaiClient.ts` (wrapper OpenAI),
+* `src/schema.ts` (Zod/Joi pour `AnalyzeUIRequest` / `AnalyzeUIResponse`).
+
+### 4.2. Validation stricte
+
+* Valide que `candidates.length` ≤ limite.
+* Valide le format des `id`, `url`, etc.
+* Après l’appel LLM, parse la réponse JSON et revérifie qu’elle respecte le schéma (types, patternType, riskLevel).
+
+En cas d’erreur :
+
+* Retourner HTTP 400/500 avec un JSON simple : `{ error: "..." }`.
+* L’extension doit le gérer et afficher un message non crashant.
+
+### 4.3. Logs “safe”
+
+* Tu dois pouvoir logger en mode dev des infos détaillées (texte complet) MAIS :
+
+  * en prod, ne loggue que :
+
+    * `scanId`,
+    * `pageUrl` **haché** (ex. SHA-256),
+    * `countsByPatternType`,
+    * `countsByRisk`,
+    * temps de traitement.
+
+* Ajoute une variable d’env `LOG_VERBOSE=false` pour contrôler ça.
+
+### 4.4. Paramétrage modèle OpenAI
+
+* Mets dans `OPENAI_MODEL` (env) : `gpt-4.1-mini` par défaut, avec la possibilité de changer.
+* Garde un `MODEL_VERSION` explicitement renvoyé dans `AnalyzeUIResponse.modelVersion` (ex. `"gpt-4.1-mini@2025-12-01-prompt-v1"`).
+
+---
+
+## 5. Documentation & “prêt à montrer à un client”
+
+Ajoute un ou plusieurs fichiers dans `docs/` :
+
+1. `docs/dark_patterns_v1.md`
+
+   * Définitions de chaque `patternType`.
+   * Exemples (screenshot ou description basée sur les pages dans `test-pages`).
+   * Limites (pré-audit, pas avis juridique).
+
+2. `docs/usage_saas_preview.md`
+
+   * Scénario d’utilisation type :
+
+     * “Ouvrir votre site / app, lancer l’extension, cliquer sur Scan”.
+     * Interpréter le résumé (nombre de patterns, risk levels).
+     * Exporter le rapport JSON/PDF pour en discuter en interne.
+
+3. Met à jour le `README` principal pour expliquer :
+
+   * Deux fonctionnalités :
+
+     * **Accessibility scanner (WCAG/EAA pre-audit)**
+     * **Dark Pattern watchdog (DSA/AI-manipulation pre-audit)**
+   * Le fait que :
+
+     * c’est un **outil de pré-audit technique/UX**,
+     * pas un avis juridique ni une certification,
+     * mais que ça peut aider à prioriser les corrections.
+
+---
+
+## 6. Rappel des contraintes
+
+* Tu dois **t’appuyer sur la structure actuelle du repo**, ne pas inventer des chemins ou outils inexistants.
+* Si un bundler / framework est déjà en place, respecte-le.
+* Aucune clé OpenAI dans le code de l’extension.
+* Le résultat final doit être :
+
+  * installable,
+  * testable sur les `test-pages/`,
+  * capable de sortir un rapport dark patterns plausible sur des sites réels (même si V1 est imparfaite).
+
+Le but de l’ensemble de ces spécifications est que l’outil soit suffisamment **solide et compréhensible** pour que le propriétaire du projet puisse :
+
+* faire une démo live,
+* fournir un rapport à un premier prospect,
+* et commencer à monétiser le service avec quelques clients pilotes.

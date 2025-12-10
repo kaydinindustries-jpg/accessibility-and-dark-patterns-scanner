@@ -7,7 +7,7 @@ let MAPPING = null;
     const res = await fetch(chrome.runtime.getURL("mapping.json"));
     MAPPING = await res.json();
   } catch (e) {
-    console.error("Mapping non chargé:", e);
+    console.error("Mapping not loaded:", e);
     MAPPING = { axe_to_wcag: {} };
   }
 })();
@@ -29,7 +29,7 @@ async function ensureOffscreen() {
     });
     return true;
   } catch (e) {
-    console.warn("[sw] Création offscreen échouée:", e);
+    console.warn("[sw] offscreen creation failed:", e);
     return false;
   }
 }
@@ -61,12 +61,12 @@ async function closeOffscreenIfAny() {
 }
 
 async function ensureOffscreenAvailable() {
-  // 1) Essayer de réutiliser s’il existe déjà
+  // 1) Try to reuse existing offscreen document if any
   try {
     const ok = await chrome.runtime.sendMessage({ type: "offscreen-ping" });
     if (ok?.ok) return true;
   } catch (_) {}
-  // 2) Sinon, créer puis attendre
+  // 2) Otherwise, create and wait
   await ensureOffscreen();
   await ensureOffscreenReady();
   return true;
@@ -100,7 +100,8 @@ function sendToOffscreenWithTimeout(message, timeoutMs = 600000) {
 }
 
 // IndexedDB (via storage.js)
-import { saveScan, getLastScanForUrl } from "./storage.js";
+import { saveScan, getLastScanForUrl, saveDarkScan, getLastDarkScanForUrl } from "./storage.js";
+import { loadConfig } from "./config.js";
 
 // Utilitaires
 function mapPrincipleFromTags(tags = []) {
@@ -112,16 +113,25 @@ function mapPrincipleFromTags(tags = []) {
   return "Robust";
 }
 
+const isRestrictedUrl = (tabUrl) => {
+  return !tabUrl ||
+    /^chrome:\/\//i.test(tabUrl) ||
+    /^chrome-extension:\/\//i.test(tabUrl) ||
+    /^edge:\/\//i.test(tabUrl) ||
+    /^about:/i.test(tabUrl) ||
+    /chromewebstore\.google\.com/i.test(tabUrl);
+};
+
 function normalizeImpact(impact) {
   if (impact === "critical") return "Critique";
   if (impact === "serious") return "Majeure";
   if (impact === "moderate") return "Moyenne";
   if (impact === "minor") return "Mineure";
-  return "Non classé";
+  return "Unclassified";
 }
 
 function weightForImpact(frLabel) {
-  // Pondérations: critical=4, serious=3, moderate=2, minor=1
+  // Weights: critical=4, serious=3, moderate=2, minor=1
   if (frLabel === "Critique") return 4;
   if (frLabel === "Majeure") return 3;
   if (frLabel === "Moyenne") return 2;
@@ -140,7 +150,7 @@ function computeScores(findings) {
   for (const f of violations) {
     W[f.principle || "Robust"] += weightForImpact(f.impact);
   }
-  // Pénalité +0.5 par incomplete, plafonnée à +20 par principe
+  // Penalty +0.5 per incomplete, capped to +20 per principle
   const incByPrinciple = { Perceivable: 0, Operable: 0, Understandable: 0, Robust: 0 };
   for (const f of incompletes) {
     const p = f.principle || 'Robust';
@@ -154,12 +164,133 @@ function computeScores(findings) {
   const principleScores = {};
   for (const p of principles) principleScores[p] = scoreP(W[p]);
 
-  // Cap Perceivable si échec AA contraste (axe ou custom)
+  // Cap Perceivable if AA contrast fails (axe or custom)
   const hasAAContrastFail = violations.some(v => (v.principle === 'Perceivable') && Array.isArray(v.wcagRef) && v.wcagRef.some(sc => /^1\.4\.(3|11)(\b|$)/.test(sc)));
   if (hasAAContrastFail && principleScores.Perceivable > 89) principleScores.Perceivable = 89;
 
   const scoreGlobal = Math.round((principles.reduce((a, p) => a + principleScores[p], 0)) / principles.length);
   return { scoreGlobal, principleScores, weights: W };
+}
+
+async function injectDarkModule(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["darkPatternsContent.js"],
+    world: "ISOLATED"
+  });
+}
+
+async function collectDarkCandidatesOnTab(tabId, cfg) {
+  await injectDarkModule(tabId);
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "ISOLATED",
+    func: (opts) => {
+      const mod = globalThis.ardasiaDarkPatterns;
+      if (!mod || typeof mod.collectDarkPatternCandidates !== "function") {
+        throw new Error("Dark pattern collector unavailable");
+      }
+      return mod.collectDarkPatternCandidates(document, opts);
+    },
+    args: [{
+      maxCandidatesPerPage: cfg.maxCandidatesPerPage,
+      maxCharsPerSnippet: cfg.maxCharsPerSnippet,
+      pageUrl: cfg.pageUrl || null,
+      viewport: cfg.viewport || "desktop",
+      scanId: cfg.scanId || undefined
+    }]
+  });
+  return result;
+}
+
+function mockAnalyzeDarkPatterns(payload) {
+  const findings = (payload.candidates || []).map((c, idx) => {
+    const hint = (c.meta && c.meta.patternHint) || "none";
+    const patternType = hint;
+    const riskLevel = ["low", "medium", "high"][idx % 3];
+    return {
+      candidateId: c.id,
+      isDarkPattern: hint !== "none",
+      patternType,
+      riskLevel,
+      explanation: `Mock classification for ${c.role || "element"} (${patternType}).`,
+      suggestedFix: "Review wording, visibility, and provide a clear opt-out.",
+      legalRefs: ["DSA Art. 25"],
+      confidence: 0.55 + (idx % 3) * 0.1
+    };
+  });
+  const summary = {
+    totalCandidates: payload.candidates?.length || 0,
+    totalPatterns: findings.filter(f => f.isDarkPattern).length,
+    countsByPatternType: findings.reduce((acc, f) => {
+      acc[f.patternType] = (acc[f.patternType] || 0) + 1;
+      return acc;
+    }, { cookie_nudge: 0, roach_motel: 0, preselected_addon: 0, hidden_information: 0, misleading_label: 0, ai_manipulation: 0, none: 0 }),
+    countsByRisk: findings.reduce((acc, f) => {
+      acc[f.riskLevel] = (acc[f.riskLevel] || 0) + 1;
+      return acc;
+    }, { low: 0, medium: 0, high: 0 })
+  };
+  return {
+    scanId: payload.scanId,
+    findings,
+    summary,
+    modelVersion: "mock-v1",
+    processingMs: 5
+  };
+}
+
+async function analyzeDarkPatterns(payload, cfg) {
+  const backend = (cfg.backendUrl || "").trim();
+  const shouldMock =
+    cfg.useMockBackend ||
+    !backend ||
+    /example\.com/i.test(backend);
+
+  if (shouldMock) {
+    return mockAnalyzeDarkPatterns(payload);
+  }
+
+  const url = backend.replace(/\/$/, "") + "/api/analyze-ui";
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), cfg.requestTimeoutMs || 10000);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return data;
+  } catch (e) {
+    // Fallback mock si le backend est indisponible
+    if (cfg.useMockBackend || !backend) {
+      console.warn("[sw] analyzeDarkPatterns falling back to mock backend:", e);
+      return mockAnalyzeDarkPatterns(payload);
+    }
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function highlightDarkCandidate(tabId, selector) {
+  await injectDarkModule(tabId);
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "ISOLATED",
+    func: (sel) => {
+      const mod = globalThis.ardasiaDarkPatterns;
+      if (!mod || typeof mod.highlightCandidate !== "function") {
+        return { ok: false, error: "Highlighter unavailable" };
+      }
+      return mod.highlightCandidate(sel, { durationMs: 3500 });
+    },
+    args: [selector]
+  });
+  return result;
 }
 
 async function scanActiveTab() {
@@ -189,7 +320,7 @@ async function scanActiveTab() {
     injectOk = true;
   } catch (e1) {
     lastErr = e1;
-    // Chemin de secours si libs/axe.min.js n'est pas trouvé
+    // Fallback path if libs/axe.min.js is not found
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -201,10 +332,10 @@ async function scanActiveTab() {
   }
   if (!injectOk) {
     const msg = (lastErr && lastErr.message) ? lastErr.message : "inconnue";
-    return { ok: false, error: `Injection axe-core échouée: ${msg}` };
+    return { ok: false, error: `axe-core injection failed: ${msg}` };
   }
 
-  // 2) Exécuter le scan axe + audit contraste custom
+  // 2) Run axe scan + custom contrast audit
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     world: "ISOLATED",
@@ -219,7 +350,7 @@ async function scanActiveTab() {
       } catch {}
 
       if (!window.axe || typeof window.axe.run !== 'function') {
-        return { error: 'axe-core non présent. Veuillez déposer libs/axe.min.js', meta };
+        return { error: 'axe-core not present. Please provide libs/axe.min.js', meta };
       }
 
       function parseRgb(str) {
@@ -327,7 +458,7 @@ async function scanActiveTab() {
         window.axe
           .run(document, runOptions)
           .then(async (axeRes) => {
-            // Contrast audit custom pour états normal|hover|focus, on retient le pire cas
+            // Custom contrast audit for normal|hover|focus, keep worst case
             const checks = [];
             const all = Array.from(document.querySelectorAll('*'));
             const seen = new Set();
@@ -347,7 +478,7 @@ async function scanActiveTab() {
               if (checks.length >= maxChecks) break;
               if (!visibleText(el)) continue;
               const selector = selFrom(el);
-              if (seen.has(selector)) continue; // dédup par sélecteur
+              if (seen.has(selector)) continue; // dedupe by selector
               seen.add(selector);
 
               let focusIndicatorPresent = null;
@@ -388,7 +519,7 @@ async function scanActiveTab() {
           .catch((e) => {
             let msg = (e && e.message) ? e.message : String(e);
             if (/\[object ProgressEvent\]/.test(msg) || /preload/i.test(msg)) {
-              msg = 'Le préchargement des assets a échoué (probable CORS/timeout). Le scan a été interrompu par axe-core. Nous désactivons désormais le préchargement pour éviter ce blocage.';
+              msg = 'Preloading of assets failed (likely CORS/timeout). The scan was interrupted by axe-core. Preloading is now disabled to avoid this.';
             }
             resolve({ error: msg, meta });
           });
@@ -424,13 +555,13 @@ async function scanActiveTab() {
       }
 
       for (const node of item.nodes || []) {
-        // Enrichir le message d'aide pour certaines règles (affiché dans DOC/JSON)
+        // Enrich help message for specific rules (shown in DOC/JSON)
         let help = item.help || "";
         if (ruleId === 'meta-viewport') {
-          help += " — ACT: user-scalable=no ou maximum-scale<2 = échec (1.4.4 Resize text).";
+          help += " — ACT: user-scalable=no or maximum-scale<2 = failure (1.4.4 Resize text).";
         }
         if (ruleId === 'meta-viewport-large') {
-          help += " — Recommandation: permettre un zoom significatif (p.ex. ≥ 200%).";
+          help += " — Recommendation: allow significant zoom (e.g. ≥ 200%).";
         }
         const f = {
           id: ruleId,
@@ -448,7 +579,7 @@ async function scanActiveTab() {
           advice: !!(map && map.advice === true),
           needsMapping: !!wcagMissing
         };
-        // Si axe fournit un ratio fiable pour color-contrast, le capturer depuis checks[].data
+        // If axe provides a reliable contrast ratio, capture it from checks[].data
         if (ruleId === 'color-contrast') {
           const allChecks = [ ...(node.any || []), ...(node.all || []) ];
           const withRatio = allChecks.find(c => c && c.data && typeof c.data.contrastRatio === 'number');
@@ -467,7 +598,7 @@ async function scanActiveTab() {
   pushItems(axeRes?.violations, 'violation');
   pushItems(axeRes?.incomplete, 'incomplete');
 
-  // Index de contraste par sélecteur
+  // Contrast index by selector
   const cks = contrast?.checks || [];
   const bySel = new Map();
   for (const c of cks) { if (c.selector) bySel.set(c.selector, c); }
@@ -495,7 +626,7 @@ async function scanActiveTab() {
       if (f.focusVisible == null) f.focusVisible = null;
     }
   }
-  // Finding synthétique si des échecs contrastes custom sont détectés
+  // Synthetic finding if custom contrast failures are detected
   {
     const failsCount = (contrast?.checks || []).filter(c => !c.needsManualCheck && !c.pass).length;
     if (failsCount > 0) {
@@ -506,19 +637,19 @@ async function scanActiveTab() {
         impact: 'Majeure',
         selectors: [],
         snippet: '',
-        help: 'Mesure de contraste custom (normal/hover/focus).',
+        help: 'Custom contrast measurement (normal/hover/focus).',
         tags: ['cat.color'],
         principle: 'Perceivable',
         status: 'violation',
         needsManualCheck: false,
-        explanation: 'Au moins un échec de contraste AA détecté par la mesure custom.'
+        explanation: 'At least one AA contrast failure detected by the custom measurement.'
       });
     }
   }
 
   const { scoreGlobal, principleScores } = computeScores(findings);
 
-  const counters = { Critique: 0, Majeure: 0, Moyenne: 0, Mineure: 0, "Non classé": 0 };
+  const counters = { Critique: 0, Majeure: 0, Moyenne: 0, Mineure: 0, "Unclassified": 0 };
   for (const f of findings) if (f.status === 'violation' && !(f.needsMapping || f.advice === true)) counters[f.impact] = (counters[f.impact] || 0) + 1;
 
   const last = await getLastScanForUrl(tab.url || "");
@@ -528,7 +659,7 @@ async function scanActiveTab() {
   const added = findings.filter((f) => !prevSet.has(serializeKey(f))).length;
   const removed = (last?.findings || []).filter((f) => !currSet.has(serializeKey(f))).length;
 
-  // Résumé contraste
+  // Contrast summary
   const contrastSummary = (() => {
     const checks = contrast?.checks || [];
     const needsManual = checks.filter(c => c.needsManualCheck).length;
@@ -537,7 +668,7 @@ async function scanActiveTab() {
     return { total, fails, needsManual };
   })();
 
-  // Échantillonnage WCAG-EM: récupérer meta depuis chrome.storage.local
+  // WCAG-EM sampling: load metadata from chrome.storage.local (optional)
   let sampleList = [tab.url || ""];
   let perimeter = "Page active (CSP/iframes peuvent limiter l’analyse)";
   let sampleSavedAt = null;
@@ -549,7 +680,7 @@ async function scanActiveTab() {
     if (typeof stored.meta_sample_saved_at === 'number') sampleSavedAt = stored.meta_sample_saved_at;
   } catch (_) {}
 
-  // Calcul du résumé d’échantillon via IndexedDB (derniers scans connus pour chaque URL)
+  // Compute sample summary via IndexedDB (latest scans per URL)
   let sampleStats = null;
   try {
     const scores = [];
@@ -561,7 +692,7 @@ async function scanActiveTab() {
       const s = await getLastScanForUrl(url);
       if (s && typeof s.scoreGlobal === 'number') scores.push(s.scoreGlobal);
     }
-    // Inclure le score courant si l’URL active n’a pas encore été persistée
+    // Include current score if active URL has not yet been persisted
     if ((tab.url || '') && !scores.length) scores.push(scoreGlobal);
     if (scores.length >= 1) {
       const sorted = scores.slice().sort((a,b) => a - b);
@@ -596,16 +727,16 @@ async function scanActiveTab() {
   return { ok: true, ...payload };
 }
 
-// Messages entrants du popup
+  // Incoming messages from popup / side panel
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Branches synchrones: on répond tout de suite et on ne retourne PAS true
+  // Synchronous branches: respond immediately and DO NOT return true
   if (msg?.type === "offscreen-ready") {
     console.info("[sw] offscreen signaled ready");
     sendResponse({ ok: true });
     return false;
   }
   if (msg?.type === "offscreen-log") {
-    // Éviter les boucles: si déjà relayé par le SW, ignorer
+    // Avoid loops: if already relayed by the SW, ignore
     if (msg.from === 'sw') { sendResponse({ ok: true }); return false; }
     console.info("[sw] offscreen:", msg.stage || "log", msg);
     try {
@@ -620,6 +751,71 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const res = await scanActiveTab();
+        sendResponse(res);
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "dark-scan") {
+    (async () => {
+      try {
+        const cfg = await loadConfig();
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) throw new Error("Aucun onglet actif.");
+        if (isRestrictedUrl(String(tab.url || ""))) {
+          sendResponse({ ok: false, error: "Page non scannable (onglet interne du navigateur)." });
+          return;
+        }
+        const collectPayload = await collectDarkCandidatesOnTab(tab.id, {
+          ...cfg,
+          pageUrl: tab.url,
+          viewport: msg?.viewport || "desktop",
+          scanId: msg?.scanId
+        });
+        if (!collectPayload?.candidates?.length) {
+          sendResponse({ ok: true, stage: "collect", data: { ...collectPayload, findings: [], summary: { totalCandidates: 0, totalPatterns: 0, countsByPatternType: {}, countsByRisk: {} } } });
+          return;
+        }
+        const analysis = await analyzeDarkPatterns(collectPayload, cfg);
+        const combined = {
+          ...analysis,
+          scanId: analysis?.scanId || collectPayload.scanId,
+          pageUrl: collectPayload.pageUrl,
+          timestamp: collectPayload.timestamp,
+          candidates: collectPayload.candidates
+        };
+        await saveDarkScan(combined);
+        sendResponse({ ok: true, data: combined });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "dark-last-scan") {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.url) throw new Error("Aucune URL active");
+        const last = await getLastDarkScanForUrl(tab.url);
+        sendResponse({ ok: true, data: last });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "dark-highlight" && msg?.selector) {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) throw new Error("Aucun onglet actif");
+        const res = await highlightDarkCandidate(tab.id, msg.selector);
         sendResponse(res);
       } catch (e) {
         sendResponse({ ok: false, error: String(e?.message || e) });
@@ -656,7 +852,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             }
           } else {
             console.warn('[sw] offscreen retry failed without dataUrl', resp);
-            sendResponse(resp || { ok: false, error: "Offscreen export a échoué" });
+            sendResponse(resp || { ok: false, error: "Offscreen export failed" });
           }
         } catch (e) {
           try {
@@ -682,12 +878,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
 
-      sendResponse({ ok: false, error: "Format export non pris en charge." });
+      sendResponse({ ok: false, error: "Unsupported export format." });
     })();
     return true;
   }
 
-  // Par défaut (synchrone)
-  sendResponse({ ok: false, error: "Type de message non pris en charge." });
+  // Default (synchronous)
+  sendResponse({ ok: false, error: "Unsupported message type." });
   return false;
 }); // Fin du listener chrome.runtime.onMessage

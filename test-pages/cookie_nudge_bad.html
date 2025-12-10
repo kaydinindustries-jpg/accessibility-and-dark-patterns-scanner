@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cookie Banner - Dark Pattern Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    .cookie-banner { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 2px solid #ddd; padding: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+    .cookie-banner h2 { margin-top: 0; }
+    .cookie-banner .actions { display: flex; gap: 10px; align-items: center; }
+    /* DARK PATTERN: Accept button is prominent, reject is hidden as tiny link */
+    .btn-accept { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    .btn-reject { font-size: 11px; color: #999; text-decoration: underline; cursor: pointer; }
+    .btn-reject:hover { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Welcome to Our Website</h1>
+  <p>This page demonstrates a cookie nudge dark pattern.</p>
+  
+  <!-- DARK PATTERN: Cookie banner with manipulative design -->
+  <div class="cookie-banner" role="dialog" aria-modal="true" aria-labelledby="cookie-title">
+    <h2 id="cookie-title">We use cookies</h2>
+    <p>We use cookies to enhance your experience and analyze our traffic. By clicking "Accept all", you agree to our use of cookies.</p>
+    <div class="actions">
+      <button class="btn-accept">Accept all</button>
+      <a class="btn-reject">Reject all</a>
+    </div>
+  </div>
+</body>
+</html>
+

@@ -3,49 +3,115 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'">
-    <title>ACCESSIBILITY SCANNER — Side Panel</title>
+    <title>ACCESSIBILITY & DARK PATTERNS — Side Panel</title>
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
     <div id="app" class="root">
-      <header class="sp-header" aria-label="ACCESSIBILITY SCANNER by ARDASIA">
-        <div class="title">ACCESSIBILITY SCANNER — Side Panel</div>
+      <header class="sp-header" aria-label="ACCESSIBILITY & DARK PATTERNS by ARDASIA">
+        <div class="title">ACCESSIBILITY & DARK PATTERNS — Side Panel</div>
         <div class="actions">
-          <button id="sp-refresh" title="Refresh">↻</button>
+          <button id="sp-reset" title="Reset panel state">Reset</button>
           <button id="sp-export-json" class="primary">Export JSON</button>
           <button id="sp-export-csv" class="primary">Export CSV</button>
           <button id="sp-export-doc" class="primary">Export DOC</button>
-          <button id="sp-reset" title="Reset panel state">Reset</button>
         </div>
       </header>
-      <section class="summary">
-        <div class="metric">Overall: <strong id="m-global">-</strong></div>
-        <div class="metric">Critical: <span id="m-crit">0</span></div>
-        <div class="metric">Serious: <span id="m-maj">0</span></div>
-        <div class="metric">Moderate: <span id="m-moy">0</span></div>
-        <div class="metric">Minor: <span id="m-min">0</span></div>
-        <div class="metric">Partial: <span id="m-partial">-</span></div>
-      </section>
-      <section class="filters">
-        <label><input type="checkbox" class="ff" value="contrast" /> Contrast <span class="fc" id="fc-contrast">0</span></label>
-        <label><input type="checkbox" class="ff" value="keyboard" /> Keyboard <span class="fc" id="fc-keyboard">0</span></label>
-        <label><input type="checkbox" class="ff" value="forms" /> Forms <span class="fc" id="fc-forms">0</span></label>
-        <label><input type="checkbox" class="ff" value="aria" /> ARIA <span class="fc" id="fc-aria">0</span></label>
-      </section>
-      <section class="list">
-        <div class="list-header">
-          <input id="search" type="search" placeholder="Search (rule id, WCAG, selectors, snippet)…" />
-          <select id="sort">
-            <option value="impact">Sort: impact</option>
-            <option value="wcag">Sort: WCAG</option>
-            <option value="principle">Sort: Principle</option>
-          </select>
-        </div>
-        <ul id="items" class="items"></ul>
-      </section>
+
+      <nav class="sp-tabs" role="tablist" aria-label="Scan modes">
+        <button id="tab-accessibility" role="tab" aria-selected="true" aria-controls="panel-accessibility">Accessibility</button>
+        <button id="tab-dark" role="tab" aria-selected="false" aria-controls="panel-dark">Dark Patterns</button>
+        <button id="tab-history" role="tab" aria-selected="false" aria-controls="panel-history">History</button>
+      </nav>
+
+      <main>
+        <!-- Onglet ACCESSIBILITY -->
+        <section id="panel-accessibility" role="tabpanel" aria-labelledby="tab-accessibility">
+          <section class="sp-controls">
+            <button id="sp-scan-accessibility" class="primary scan-button">Scan Accessibility (WCAG/EAA)</button>
+          </section>
+          <section class="summary">
+            <div class="metric">Overall: <strong id="m-global">-</strong></div>
+            <div class="metric">Critical: <span id="m-crit">0</span></div>
+            <div class="metric">Serious: <span id="m-maj">0</span></div>
+            <div class="metric">Moderate: <span id="m-moy">0</span></div>
+            <div class="metric">Minor: <span id="m-min">0</span></div>
+            <div class="metric">Partial: <span id="m-partial">-</span></div>
+          </section>
+          <section class="filters">
+            <label><input type="checkbox" class="ff" value="contrast" /> Contrast <span class="fc" id="fc-contrast">0</span></label>
+            <label><input type="checkbox" class="ff" value="keyboard" /> Keyboard <span class="fc" id="fc-keyboard">0</span></label>
+            <label><input type="checkbox" class="ff" value="forms" /> Forms <span class="fc" id="fc-forms">0</span></label>
+            <label><input type="checkbox" class="ff" value="aria" /> ARIA <span class="fc" id="fc-aria">0</span></label>
+          </section>
+          <section class="list">
+            <div class="list-header">
+              <input id="search" type="search" placeholder="Search (rule id, WCAG, selectors, snippet)…" />
+              <select id="sort">
+                <option value="impact">Sort: impact</option>
+                <option value="wcag">Sort: WCAG</option>
+                <option value="principle">Sort: Principle</option>
+              </select>
+            </div>
+            <ul id="items" class="items"></ul>
+          </section>
+        </section>
+
+        <!-- Onglet DARK PATTERNS -->
+        <section id="panel-dark" role="tabpanel" aria-labelledby="tab-dark" hidden>
+          <section class="dp-summary">
+            <div class="metric">Candidates: <strong id="dp-total-candidates">0</strong></div>
+            <div class="metric">Patterns: <strong id="dp-total-patterns">0</strong></div>
+            <div class="metric">High risk: <span id="dp-risk-high">0</span></div>
+            <div class="metric">Medium: <span id="dp-risk-medium">0</span></div>
+            <div class="metric">Low: <span id="dp-risk-low">0</span></div>
+            <div class="metric">Model: <span id="dp-model">-</span></div>
+          </section>
+
+          <section class="dp-controls">
+            <button id="dp-scan" class="primary scan-button">Scan Dark Patterns</button>
+            <span id="dp-state" class="dp-state" aria-live="polite"></span>
+          </section>
+
+          <section class="dp-filters">
+            <label>Pattern type:
+              <select id="dp-filter-pattern">
+                <option value="">All</option>
+                <option value="cookie_nudge">Cookie nudge</option>
+                <option value="roach_motel">Roach motel</option>
+                <option value="preselected_addon">Preselected addon</option>
+                <option value="hidden_information">Hidden information</option>
+                <option value="misleading_label">Misleading label</option>
+                <option value="ai_manipulation">AI manipulation</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label>Risk:
+              <select id="dp-filter-risk">
+                <option value="">All</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="dp-list">
+            <ul id="dp-items" class="dp-items"></ul>
+          </section>
+        </section>
+
+        <!-- Onglet HISTORY -->
+        <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+          <section class="history">
+            <h3 class="history-title">Scan history</h3>
+            <ul id="sp-history" class="history-items"></ul>
+          </section>
+        </section>
+      </main>
     </div>
     <script src="sidepanel.js"></script>
   </body>
-  </html>
+</html>
 
 

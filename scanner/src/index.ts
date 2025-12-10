@@ -61,6 +61,8 @@ const PAGE_TIMEOUT_MS = process.env.PAGE_TIMEOUT_MS ? Number(process.env.PAGE_TI
 const NAV_TIMEOUT_MS = process.env.NAV_TIMEOUT_MS ? Number(process.env.NAV_TIMEOUT_MS) : PAGE_TIMEOUT_MS;
 // History module
 import { computeAndPersistDiffForScan, saveMetricsForScan, listScansForSite, getOrComputeDiffForScan } from './history.js';
+// Dark patterns routes
+import { registerAnalyzeUiRoutes } from './routes/analyze-ui.js';
 
 // Simple JSON logger
 function log(event: string, data: Record<string, unknown> = {}) {
@@ -1163,6 +1165,9 @@ app.use((req, res, next) => {
   (req as any).freeMode = FREE_MODE;
   return (express.json({ limit: '1mb' }) as any)(req, res, next);
 });
+
+// Dark patterns routes
+registerAnalyzeUiRoutes(app);
 
 // Auth endpoints
 if (AUTH_ENABLED) {
